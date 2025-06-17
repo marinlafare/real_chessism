@@ -18,10 +18,9 @@ def insert_player(data: dict)-> PlayerResult:
     player_data = PlayerCreateData(**profile)
     player = player_interface.create(player_data.model_dump())
     player = jsonable_encoder(player)
-    return JSONResponse(content=player)
+    return player
 def read_player(player_name):
-     profile = player_interface.read_by_name(player_name['player_name'].lower())
+     profile = player_interface.read_by_name(player_name.lower())
      if not profile:
-          return 'No player at DB'
-     profile = jsonable_encoder(profile)
-     return JSONResponse(content=profile)
+         return 'No player at DB'
+     return profile

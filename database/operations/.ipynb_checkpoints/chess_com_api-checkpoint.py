@@ -7,35 +7,37 @@ import json
 import io
 import concurrent
 import time
+from constants import *
+import database.operations.chess_com_endpoints as chess_com_endpoints
 
-root = os.getcwd().split('/database')[0]
-load_dotenv(root + "/this_is_not_an_env.env")
+# CHESSCOM ENDPOINTS
+
+
+#
 def get_profile(player_name):
-    print(os.getenv("PLAYER"))
-    PLAYER = os.getenv("PLAYER").replace("{player_name}", player_name)
-    USER_AGENT = os.getenv('USER_AGENT')
-    # response = requests.get(PLAYER, timeout=3, headers = {"User-Agent": USER_AGENT})
+    PLAYER = chess_com_endpoints.PLAYER.replace('{player}', player_name)
+    response = requests.get(PLAYER,
+                            timeout=3,
+                            headers = {"User-Agent": chess_com_endpoints.USER_AGENT})
     
-    # if response.status_code == 200:
-    #     response = response.__dict__["_content"].decode("utf-8")
-    #     response = json.loads(response)
-    #     response.pop('@id')
-    #     response.pop('username')
-    #     response.pop('last_online')
-    #     country = response.pop('country').split('/')[-1]
-    #     response['country'] = country
-    #     print('#######QQQQQ')
-    #     if "message" in response:
-    #         return False
-    #     return response
-    # else:
-    #     return f'RESPONSE {response.status_code}'
-    return USER_AGENT
+    if response.status_code == 200:
+        response = response.__dict__["_content"].decode("utf-8")
+        response = json.loads(response)
+        response.pop('@id')
+        response.pop('username')
+        response.pop('last_online')
+        country = response.pop('country').split('/')[-1]
+        response['country'] = country
+        if "message" in response:
+            return False
+        return response
+    else:
+        return f'RESPONSE {response.status_code}'
 def ask_twice(player_name: str, year: int, month: int):
-    USER_AGENT = os.getenv('USER_AGENT')
+    USER_AGENT = chess_com_endpoints.USER_AGENT
     DOWNLOAD_MONTH = (
-        os.getenv("DOWNLOAD_MONTH")
-        .replace("{player_name}", player_name)
+        chess_com_endpoints.DOWNLOAD_MONTH
+        .replace("{player}", player_name)
         .replace("{year}", str(year))
         .replace("{month}", str(month))
     )
@@ -63,23 +65,32 @@ def download_month(player_name: str, year: int, month: int) -> str:
     if games == False:
         return False
     pgn = io.StringIO(games.content.decode().replace("'", '"'))
-    time.sleep(1)
     return pgn
-def month_of_games(params: list) -> None:
+def month_of_games(params: list, parallel = True) -> None:
     """
     Download a month, splits the games and return a list of pgn games.
     """
     pgn = download_month(params["player_name"], params["year"], params["month"])
     if pgn == False:
-        return params["return_games"].append(False)
-    params["return_games"].extend(pgn.read().split("\n\n\n"))
-
-def download_months(player_name, valid_dates):
+        if not parallel:
+            return False
+        return params["return_games"].append((False,False,False))
+    if "\n\n\n" in pgn.read():
+        if not parallel:
+            return pgn.read().split("\n\n\n")
+        params["return_games"].append((params["year"],params["month"],pgn.read().split("\n\n\n")))
+    else:
+        pgn = pgn.getvalue()
+        pgn = json.loads(pgn)
+        if not parallel:
+            return pgn['games'] 
+        params["return_games"].append((params["year"],params["month"],pgn['games']))
+        
+def download_months(player_name, valid_dates, parallel=False):
     """
     Ask chessdotcom for the games on the date_range trough a threadpool
     returns valid games for valid months and a list of months asked
     """
-    print('VALID DATES',valid_dates)
     return_games = []
     params = [
         {
@@ -90,11 +101,35 @@ def download_months(player_name, valid_dates):
         }
         for date in valid_dates
     ]
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-        executor.map(month_of_games, params)
-    print(f"GOT {len(return_games)} games")
-    print("downloading over")
-    return_games = [game for game in return_games if game is not False]
-    print(f'returned games = {len(return_games)}')
-    return return_games
+    if parallel:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            executor.map(month_of_games, params)
+        print(f"GOT {len(return_games)} games")
+        print("downloading over")
+        return_games = [game for game in return_games if game is not False]
+        print(f'returned games = {len(return_games)}')
+
+        years = set([x[0] for x in return_games])
+        years = {name: {} for name in years}
+        
+        for year_month_game in return_games:
+            year = year_month_game[0]
+            month = year_month_game[1]
+            try:
+                years[year][month]
+            except:
+                years[year][month] = list()
+            years[year][month].extend(year_month_game[2])
+        return years
+    else:
+        years = set([x["year"] for x in params])
+        games = dict()
+        for year in years:
+            games[year] = dict()
+        for param in params:
+            games[param["year"]][param["month"]] = list()
+            param["return_games"] = []
+            pgn = month_of_games(param, parallel = False)
+            for game in pgn:
+                games[param["year"]][param["month"]].append(game)
+        return games

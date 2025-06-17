@@ -1,8 +1,9 @@
 #OPERATIONS
 
 #from .months import read_months, create_month
-from .players import read_player
 #from .interface import DataInterface
+
+from .players import read_player
 from datetime import datetime
 import pandas as pd
 from .models import PlayerCreateData
@@ -10,6 +11,7 @@ from database.database.db_interface import DBInterface
 from database.database.ask_db import open_request
 from database.database.models import Player, Game, Month
 from database.operations.chess_com_api import get_profile
+
 player_interface = DBInterface(Player)
 game_interface = DBInterface(Game)
 month_interface = DBInterface(Month)
@@ -98,6 +100,7 @@ def create_date_range(dates) -> list[tuple]:
     date_range = [(int(x.split("-")[0]), int(x.split("-")[1])) for x in date_range]
     return date_range
 def create_range(data: dict) -> list:
+    
     player_name = data['player_name']
     date_petition = data['dates']
     if date_petition == 'full':

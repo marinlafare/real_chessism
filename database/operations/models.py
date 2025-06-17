@@ -22,31 +22,36 @@ class PlayerResult(BaseModel):
     player_name: str
 
 class GameCreateData(BaseModel):
-    id: int
-    start_time: str
+    link: int
     year: int
     month:int
     day:int
+    hour: int
+    minute: int
+    second: int
     white:str
     black:str
     white_elo:int
     black_elo:int
     white_result:float
     black_result:float
+    white_str_result:str
+    black_str_result:str
     time_control:str
     eco:str
-    time_elapsed:str
-    termination:str
+    time_elapsed:int
     n_moves:int
 class MoveCreateData(BaseModel):
-    id: int
-    moves: str
-    white_moves:str
-    black_moves:str
-    white_reaction_times:str
-    black_reaction_times:str
-    white_time_left:str
-    black_time_left:str
+    link: int
+    n_move: int
+    white_move:str
+    black_move:str
+    white_reaction_time:float
+    black_reaction_time:float
+    white_time_left:float
+    black_time_left:float
 class MonthCreateData(BaseModel):
     player_name: str
-    dates: str
+    year: int
+    month: int
+    n_games: int
