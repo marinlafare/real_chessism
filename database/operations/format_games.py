@@ -8,7 +8,10 @@ import re
 import pandas as pd
 import multiprocessing as mp
 import concurrent
-from database.database.ask_db import player_exists_at_db, open_request
+from database.database.ask_db import (player_exists_at_db,
+                                        open_request, 
+                                        get_players_already_in_db,
+                                        get_games_already_in_db)
 from database.database.db_interface import DBInterface
 from database.database.models import Player, Game, Month, Move
 import time
@@ -232,6 +235,7 @@ def get_moves_data(game: str) -> tuple:
                                     )
     return n_moves, moves_data
 def format_one_game_moves(moves):
+    
     to_insert_moves = []
     try:
         moves['white_moves']
@@ -241,34 +245,91 @@ def format_one_game_moves(moves):
         moves_dict = {}
         moves_dict['n_move'] = ind + 1
         moves_dict['link'] = moves['link']
+        
         moves_dict['white_move'] = white_move
-        moves_dict['black_move'] = moves['white_moves'][ind]
         moves_dict['white_reaction_time'] = round(moves['white_reaction_times'][ind],3)
         moves_dict['white_time_left'] = round(moves['white_time_left'][ind],3)
 
         try:
+            moves_dict['black_move'] = moves['black_moves'][ind]
             moves_dict['black_reaction_time'] = round(moves['black_reaction_times'][ind],3)
             moves_dict['black_time_left'] = round(moves['black_time_left'][ind],3)
         except:
+            moves_dict['black_move'] = '--'
             moves_dict['black_reaction_time'] = 0.0
             moves_dict['black_time_left'] = 0.0
         to_insert_moves.append(MoveCreateData(**moves_dict).model_dump())
     return to_insert_moves
-def insert_players(games_list):
+def game_insert_players(games_list):
+    player_interface = DBInterface(Player)
     whites = [x['white'] for x in games_list]
     blacks = [x['black'] for x in games_list]
     players_set = set(whites)
     players_set.update(set(blacks))
-    for player in players_set:
-        print(player)
-        inserted_player = insert_player({"player_name":player})
-        if type(inserted_player) == str:
-            print(player)
-            print(inserted_player)
+    print('#####################')
+    print('#####################')
+    print(len(players_set))
+    print('#####################')
+    print('#####################')
+    
+    in_db_players = get_players_already_in_db(tuple(players_set))
+    to_insert_players =  players_set - in_db_players
+    players_data = [PlayerCreateData(**{"player_name":x}).model_dump() for x in to_insert_players]
+    player_interface.create_all(players_data)
+def get_just_new_games(games):
+    
+    links = []
+    new_games = {}
+    for year in games.keys():
+        for month in games[year].keys():
+            for game in games[year][month]:
+                try:
+                    game['pgn']
+                    links.append(game['url'].split('/')[-1])
+                except:
+                    continue
+    
+    in_db_games = get_games_already_in_db(tuple(links))
+    to_insert_games = set([int(x) for x in links]) - in_db_games
+   
+    if len(to_insert_games)==0:
+        return False
+    
+    count = 0
+    for year in games.keys():
+        new_games[year] = {}
+        for month in games[year].keys():
+            new_games[year][month] = []
+            for game in games[year][month]:
+                if int(game['url'].split('/')[-1]) in to_insert_games:
+                        new_games[year][month].append(game)
+                        count += 1
+    if count ==0:
+        return False
+    return new_games
+def insert_new_data(games_list, moves_list, months_list):
+    move_interface = DBInterface(Move)
+    game_interface = DBInterface(Game)
+    month_interface = DBInterface(Month)
+    
+    game_interface.create_all(games_list)
+    month_interface.create_all(months_list)
+    move_interface.create_all(moves_list)
+    
+    
 def format_and_insert_games(games, player_name):
+    print('one')
+    insert_player({"player_name":player_name})
+    print('two')
+    games = get_just_new_games(games)
+    print('tree')
+    if not games or len(games)==0:
+        return "all games already at DB"
+    
     games_list = []
     moves_list = []
     months_list = []
+    count = 0
     for year in games.keys():
         for month in games[year].keys():
             month_data = {"player_name":player_name,
@@ -277,15 +338,20 @@ def format_and_insert_games(games, player_name):
                          "n_games":len(games[year][month])}
             months_list.append(MonthCreateData(**month_data).model_dump())
             for game in games[year][month]:
+                
                 game = create_game_dict(game)
                 moves = game.pop('moves_data')
                 moves_format = format_one_game_moves(moves)
                 if moves_format:
                     moves_list.extend(moves_format)
                 games_list.append(GameCreateData(**game).model_dump())
-    insert_players(games_list)
+                count+=1
+                if count%300==0:
+                    print(count)
                 
-    return games_list, moves_list, months_list
+    game_insert_players(games_list)
+    insert_new_data(games_list, moves_list, months_list)
+    return "DONEEEEEEEEEEEEEEEEEEEEEEEEEEE"
 
 
 # from database.database.engine import init_db

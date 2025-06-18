@@ -28,7 +28,7 @@ class Player(Base):
     league = Column('league', String, nullable=True)
 class Game(Base):
     __tablename__ = 'game'
-    link = Column('link',Integer, primary_key = True, unique = True)
+    link = Column('link',BigInteger, primary_key = True, unique = True)
     white = Column("white", String, ForeignKey("player.player_name"), nullable=False)
     black = Column("black", String, ForeignKey("player.player_name"), nullable=False)
 
@@ -54,10 +54,13 @@ class Game(Base):
     black_player = relationship(Player, foreign_keys=[black])
 class Month(Base):
     __tablename__ = "months"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
     player_name = Column("player_name",
                          String,
                          ForeignKey("player.player_name"),
-                         primary_key = True,
+                         primary_key = False,
+                         unique=False,
                          nullable=False)
     year = Column("year", Integer, nullable=False, unique=False)
     month = Column("month", Integer, nullable=False, unique=False)
@@ -66,13 +69,14 @@ class Month(Base):
 
 class Move(Base):
     __tablename__ = "moves"
-    link = Column("link",Integer,ForeignKey("game.link"),primary_key=True,
-                  nullable=False,unique=True)
-    moves = Column("moves", String, nullable=False)
-    white_moves = Column("white_moves", String, nullable=False)
-    black_moves = Column("black_moves", String, nullable=False)
-    white_reaction_times = Column("white_reaction_times", String, nullable=False)
-    black_reaction_times = Column("black_reaction_times", String, nullable=False)
-    white_time_left = Column("white_time_left", String, nullable=False)
-    black_time_left = Column("black_time_left", String, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    link = Column("link",BigInteger,ForeignKey("game.link"),
+                  nullable=False,unique=False)
+    n_move = Column("n_move", Integer, nullable=False)
+    white_move = Column("white_move", String, nullable=False)
+    black_move = Column("black_move", String, nullable=False)
+    white_reaction_time = Column("white_reaction_time", Float, nullable=False)
+    black_reaction_time = Column("black_reaction_time", Float, nullable=False)
+    white_time_left = Column("white_time_left", Float, nullable=False)
+    black_time_left = Column("black_time_left", Float, nullable=False)
     game = relationship(Game, foreign_keys=[link])

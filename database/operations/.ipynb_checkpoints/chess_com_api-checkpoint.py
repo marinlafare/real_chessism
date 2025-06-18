@@ -10,7 +10,6 @@ import time
 from constants import *
 import database.operations.chess_com_endpoints as chess_com_endpoints
 
-# CHESSCOM ENDPOINTS
 
 
 #
@@ -43,7 +42,7 @@ def ask_twice(player_name: str, year: int, month: int):
     )
     games = requests.get(DOWNLOAD_MONTH,
                          allow_redirects=True,
-                         timeout=3,
+                         timeout=5,
                          headers = {"User-Agent": USER_AGENT})
     if len(games.content) == 0:
         time.sleep(1)
@@ -71,6 +70,7 @@ def month_of_games(params: list, parallel = True) -> None:
     Download a month, splits the games and return a list of pgn games.
     """
     pgn = download_month(params["player_name"], params["year"], params["month"])
+    
     if pgn == False:
         if not parallel:
             return False
@@ -80,8 +80,14 @@ def month_of_games(params: list, parallel = True) -> None:
             return pgn.read().split("\n\n\n")
         params["return_games"].append((params["year"],params["month"],pgn.read().split("\n\n\n")))
     else:
-        pgn = pgn.getvalue()
-        pgn = json.loads(pgn)
+        if r"""[Event \"Let"s Play!\"]""" in pgn.getvalue():
+            pgn = pgn.getvalue().replace(r"""[Event \"Let"s Play!\"]""", "[Event Lets Play]")
+            pgn = json.loads(pgn)
+        else:
+            pgn = pgn.getvalue()
+            pgn = json.loads(pgn)
+        print(pgn.keys())
+        print(len(pgn['games']))
         if not parallel:
             return pgn['games'] 
         params["return_games"].append((params["year"],params["month"],pgn['games']))
@@ -130,6 +136,8 @@ def download_months(player_name, valid_dates, parallel=False):
             games[param["year"]][param["month"]] = list()
             param["return_games"] = []
             pgn = month_of_games(param, parallel = False)
+            if not pgn:
+                continue
             for game in pgn:
                 games[param["year"]][param["month"]].append(game)
         return games

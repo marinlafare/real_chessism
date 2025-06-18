@@ -66,6 +66,33 @@ def ask_links_with_this_players(player_name, tuple_of_players) -> set():
     return set([int(x) for x in result])
 
 
+
+def get_players_already_in_db(tuple_of_players):
+    conn = get_ask_connection()
+    with conn.cursor() as curs:
+        if not isinstance(tuple_of_players, tuple):
+            tuple_of_players = (tuple_of_players,)
+        placeholders = ', '.join(['%s'] * len(tuple_of_players))
+        query = f"select player_name FROM player WHERE player_name in ({placeholders})"
+        curs.execute(query, tuple_of_players)
+        result = curs.fetchall()
+    result = set(list(chain.from_iterable(result)))
+    return result
+def get_games_already_in_db(tuple_of_links):
+    
+    conn = get_ask_connection()
+    with conn.cursor() as curs:
+        if not isinstance(tuple_of_links, tuple):
+            tuple_of_links = (tuple_of_links,)
+        placeholders = ', '.join(['%s'] * len(tuple_of_links))
+        query = f"select link FROM game WHERE link in ({placeholders})"
+        curs.execute(query, tuple_of_links)
+        result = curs.fetchall()
+    result = set(list(chain.from_iterable(result)))
+    return result
+
+
+
 def get_all_players():
     conn = get_ask_connection()
     with conn.cursor() as curs:
@@ -104,3 +131,16 @@ def delete_all_tables():
             if conn:
                 conn.close()
                 print("Database connection closed.")
+
+
+
+
+
+# def get_players_already_in_db___(tuple_of_players):
+#     conn = get_ask_connection()
+#     with conn.cursor() as curs:
+#         curs.execute(f"select player_name from player where player_name in {tuple_of_players}")
+#         result = curs.fetchall()
+#     result = set(list(chain.from_iterable(result)))
+#     return result
+    
