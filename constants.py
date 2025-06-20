@@ -25,5 +25,10 @@ DRAW_RESULTS = ['50move',
 LOSE_RESULTS = [
     'checkmated',
     'resigned',
+    'threecheck',
     'timeout','abandoned'
+]
+WINING_RESULT = [
+    'win',
+    'kingofthehill'
 ]
