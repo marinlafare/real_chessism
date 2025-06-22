@@ -1,15 +1,11 @@
 #OPERATIONS
 
-from database.database.models import Game
 from .format_dates import just_new_months
 from .format_games import format_and_insert_games
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from database.database.db_interface import DBInterface
 from .chess_com_api import download_months
 import time
-
-game_interface = DBInterface(Game)
 
 def read_game(data):
     player = data
@@ -24,7 +20,7 @@ def create_games(data:dict)->str:
         return 'ALL MONTHS IN DB ALREADY'
     print('DOWNLOADING')
     start_download = time.time()
-    games = download_months(player_name,new_months, parallel=False)
+    games = download_months(player_name,new_months)
     end_download = time.time()
     print('DOWNLOADED IN: ', (end_download-start_download)/60)
     format_and_insert_games(games, player_name)

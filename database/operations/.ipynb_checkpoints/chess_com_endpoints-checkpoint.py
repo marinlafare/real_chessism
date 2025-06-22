@@ -1,3 +1,4 @@
 USER_AGENT="Mozilla/5.0 (Macintosh; Intel Mac OS X x.y; rv:42.0) Gecko/20100101 Firefox/42.0"
 PLAYER="https://api.chess.com/pub/player/{player}"
 DOWNLOAD_MONTH = "https://api.chess.com/pub/player/{player}/games/{year}/{month}"
+LEADERBOARD = "https://api.chess.com/pub/leaderboards"

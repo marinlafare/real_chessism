@@ -23,7 +23,7 @@ def create_date_range(dates) -> list[tuple]:
     date_range = (
         pd.date_range(
             f"{from_year}-{from_month}-01", f"{to_year}-{to_month}-01", freq="MS"
-        )
+            )
         .strftime("%Y-%m")
         .tolist()
     )
@@ -42,45 +42,3 @@ def just_new_months(player_name):
         return False
     else:
         return valid
-
-
-
-
-# def specific_range(date_petition: str) -> list:
-#     dates = format_date_petition(date_petition)
-#     if type(dates) == str:
-#         return dates
-#     range_dates = create_date_range(dates)
-#     return range_dates
-# def format_date_petition(dates):
-#     dates = validate_dates(dates)
-#     if not dates: return 'Not a valid format_date: YYYY_MM-YYYY_MM'
-#     from_year = dates.split('-')[0].split('_')[0]
-#     from_month = dates.split('-')[0].split('_')[1]
-#     to_year = dates.split('-')[1].split('_')[0]
-#     to_month = dates.split('-')[1].split('_')[1]
-#     print('from_year', from_year)
-#     print('from_month',from_month)
-#     print('to_year', to_year)
-#     print('to_month',to_month)
-#     if not int(from_year) <= int(to_year):
-#         return 'from_year is bigger than to_year'
-#     if int(from_year) == int(to_year):
-#         if not int(from_month) <= int(to_month):
-#             return 'from_month is bigger than to_month'
-#     return from_year, from_month, to_year, to_month
-# def validate_dates(dates):
-#     if len(dates) not in [15,14,13]:
-#         return False
-#     if dates.count('_') != 2:
-#         return False
-#     if dates.count('-') != 1:
-#         return False
-#     return dates
-    
-# def format_months(player_name):
-    
-#     for date in date_range:
-#         format = f'{date[0]}_{date[1]}###'
-#         new_months += format
-#     return new_months
