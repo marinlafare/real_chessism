@@ -1,157 +1,287 @@
-#OPERATIONS
+# operations/chess_com_api.py
 
-import os
-from dotenv import load_dotenv
-import requests
+import asyncio
+import httpx
 import json
-import io
-import concurrent
 import time
-from constants import *
-import database.operations.chess_com_endpoints as chess_com_endpoints
+from typing import List, Tuple, Dict, Any, Optional
 
-def get_profile(player_name):
-    PLAYER = chess_com_endpoints.PLAYER.replace('{player}', player_name)
-    response = requests.get(PLAYER,
-                            timeout=3,
-                            headers = {"User-Agent": chess_com_endpoints.USER_AGENT})
-    
-    if response.status_code == 200:
-        response = response.__dict__["_content"].decode("utf-8")
-        response = json.loads(response)
-        response.pop('@id')
-        response.pop('username')
-        response.pop('last_online')
-        country = response.pop('country').split('/')[-1]
-        response['country'] = country
-        if "message" in response:
-            return False
-        return response
-    else:
-        return f'RESPONSE {response.status_code}'
-def ask_twice(player_name: str, year: int, month: int):
-    if len(str(month)) == 1:
-        month = '0'+str(month)
-    USER_AGENT = chess_com_endpoints.USER_AGENT
-    DOWNLOAD_MONTH = (
+# Ensure these imports are correct based on your project structure
+from constants import USER_AGENT # Assuming USER_AGENT is defined here
+import database.operations.chess_com_endpoints as chess_com_endpoints
+from database.operations.models import PlayerCreateData
+
+# --- API CLIENT FUNCTIONS ---
+
+async def get_profile(player_name: str) -> Optional[PlayerCreateData]:
+    """
+    Fetches a player's profile from the Chess.com API and returns it as a
+    PlayerCreateData Pydantic model instance.
+
+    Args:
+        player_name (str): The Chess.com username.
+
+    Returns:
+        PlayerCreateData | None: An instance of PlayerCreateData with the profile details,
+                                 or None if whateva.
+    """
+    PLAYER_URL = chess_com_endpoints.PLAYER.replace('{player}', player_name)
+    async with httpx.AsyncClient(timeout=5) as client:
+        try:
+            response = await client.get(
+                PLAYER_URL,
+                headers={"User-Agent": USER_AGENT}
+            )
+            response.raise_for_status()
+            
+            raw_data = response.json()
+
+            # --- Transformation to match PlayerCreateData Pydantic model ---
+            processed_data = {} 
+            processed_data['player_name'] = player_name.lower() # Always use the requested player_name
+
+            # Populate other fields using .get() for safety and let Pydantic handle defaults
+            processed_data['name'] = raw_data.get('name')
+            processed_data['url'] = raw_data.get('url')
+            processed_data['title'] = raw_data.get('title')
+            processed_data['avatar'] = raw_data.get('avatar')
+            processed_data['followers'] = raw_data.get('followers')
+            
+            country_url = raw_data.get('country')
+            if country_url:
+                processed_data['country'] = country_url.split('/')[-1]
+            else:
+                processed_data['country'] = None
+
+            processed_data['location'] = raw_data.get('location')
+            
+            joined_ts = raw_data.get('joined')
+            if joined_ts is not None:
+                try:
+                    processed_data['joined'] = int(joined_ts)
+                except (ValueError, TypeError):
+                    print(f"Warning: Could not convert 'joined' ({joined_ts}) to int for {player_name}. Setting to 0.")
+                    processed_data['joined'] = 0
+            else:
+                processed_data['joined'] = 0
+
+            processed_data['status'] = raw_data.get('status')
+            processed_data['is_streamer'] = raw_data.get('is_streamer')
+            processed_data['twitch_url'] = raw_data.get('twitch_url')
+            processed_data['verified'] = raw_data.get('verified')
+            processed_data['league'] = raw_data.get('league')
+            print(processed_data)
+            try:
+                player_data = PlayerCreateData(**processed_data)
+                return player_data # Return the Pydantic model instance
+            except Exception as pydantic_error:
+                print(f"Pydantic validation error for {player_name}: {pydantic_error}")
+                print(f"Data that failed validation: {processed_data}")
+                return None
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                print(f"Player '{player_name}' not found on Chess.com (404).")
+                return None
+            print(f"HTTP error for profile {player_name}: {e.response.status_code} - {e.response.text}")
+            return None
+        except httpx.RequestError as e:
+            print(f"Request error for profile {player_name}: {e}")
+            return None
+        except Exception as e:
+            print(f"An unexpected error occurred getting profile {player_name}: {e}")
+            return None
+
+
+async def ask_twice(player_name: str, year: int, month: int, client: httpx.AsyncClient) -> Optional[httpx.Response]:
+    """
+    Fetches game archives for a specific month, with a retry logic.
+    Uses an existing httpx.AsyncClient instance.
+
+    Args:
+        player_name (str): The Chess.com username.
+        year (int): The year of the archive.
+        month (int): The month of the archive.
+        client (httpx.AsyncClient): The shared HTTPX async client.
+
+    Returns:
+        httpx.Response | None: The HTTPX Response object if successful, None otherwise.
+    """
+    # Ensure month is two digits for URL formatting
+    month_str = f"{month:02d}"
+
+    DOWNLOAD_MONTH_URL = (
         chess_com_endpoints.DOWNLOAD_MONTH
         .replace("{player}", player_name)
         .replace("{year}", str(year))
-        .replace("{month}", str(month))
+        .replace("{month}", month_str)
     )
+
     try:
+        games_response = await client.get(
+            DOWNLOAD_MONTH_URL,
+            follow_redirects=True, # Use 'follow_redirects'
+            timeout=5,
+            headers={"User-Agent": USER_AGENT}
+        )
         
-        games = requests.get(DOWNLOAD_MONTH,
-                             allow_redirects=True,
-                             timeout=5,
-                             headers = {"User-Agent": USER_AGENT})
-        if len(games.content) == 0:
-            time.sleep(1)
-            games = requests.get(DOWNLOAD_MONTH,
-                                 allow_redirects=True,
-                                 timeout=10,
-                                 headers = {"User-Agent": USER_AGENT})
-        if len(games.content) == 0:
-            return False
-    except:
-        return False
-    return games
-def download_month(player_name: str, year: int, month: int) -> str:
-    """It ask for a month of games,
-    it asks twice because the first one can be an error and get back with no games,
-    if twice gets no games then it returns False.
+        # Check for empty content on first try and retry if necessary
+        if not games_response.content:
+            await asyncio.sleep(1) # Wait asynchronously before retry
+            games_response = await client.get(
+                DOWNLOAD_MONTH_URL,
+                follow_redirects=True,
+                timeout=10, # Longer timeout for retry
+                headers={"User-Agent": USER_AGENT}
+            )
+        
+        if not games_response.content:
+            print(f"No content after two attempts for {player_name} in {year}-{month_str}.")
+            return None # Explicitly return None if no content
+
+        games_response.raise_for_status() # Raise for 4xx/5xx responses
+        return games_response # Return the httpx Response object
+
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            print(f"No games found for {player_name} in {year}-{month_str} (404).")
+            return None
+        print(f"HTTP error downloading month {year}-{month_str}: {e.response.status_code} - {e.response.text}")
+        return None
+    except httpx.RequestError as e:
+        print(f"Request error downloading month {year}-{month_str}: {e}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred downloading month {year}-{month_str}: {e}")
+        return None
+
+
+async def download_month(player_name: str, year: int, month: int, client: httpx.AsyncClient) -> Optional[httpx.Response]:
     """
-    games = ask_twice(player_name, year, month)
-    if games == False:
-        return False
+    Wrapper for ask_twice to get a month's games, passing the shared client.
+    """
+    games = await ask_twice(player_name, year, month, client)
     return games
+
+
+async def month_of_games(param: Dict[str, Any], client: httpx.AsyncClient) -> Optional[Dict[str, Any]]:
+    """
+    Downloads a month of games and returns as parsed JSON dictionary.
+    Passes the shared httpx.AsyncClient.
+
+    Args:
+        param (Dict[str, Any]): Dictionary containing 'player_name', 'year', 'month'.
+        client (httpx.AsyncClient): The shared HTTPX async client.
+
+    Returns:
+        Dict[str, Any] | None: The parsed JSON dictionary containing game data, or None on failure.
+    """
+    player_name = param["player_name"]
+    year = param["year"]
+    month = param["month"]
+
+    pgn_response = await download_month(player_name, year, month, client) # Pass the client
     
-def month_of_games(params: list, parallel = True) -> None:
-    count = 0
-    """
-    Download a month of games in a simple string, formatted as pgn
-    """
-    pgn = download_month(params["player_name"], params["year"], params["month"])
-    if pgn == False:
-        return False
-    pgn = io.StringIO(pgn.content.decode().replace("'", '"'))
-    return pgn
-def filter_raw_pgn(pgn, year, month):
-    if not pgn:
-        return False
-    if 'code' and 'message' in pgn:
-        return False
-    text_games = pgn.getvalue()
-    text_games = text_games.replace(' \\"Let"s Play!','lets_play')
+    if pgn_response is None: # check for None from download_month
+        return None # Indicate failure to get PGN content
+
     try:
-        return json.loads(text_games)
-    except:
-        print('string failed to create a JSON: ', f'year: {year}', f'month {month}')
-        return False
-def download_months(player_name, valid_dates):
-    return_games = []
-    params = [
-        {
-            "player_name": player_name,
-            "year": date[0],
-            "month": date[1],
-            "return_games": return_games,
-        }
-        for date in valid_dates
-    ]
-    
-    years = set([x["year"] for x in params])
-    games = dict()
-    for year in years:
-        games[year] = dict()
-    for param in params:
-        games[param["year"]][param["month"]] = list()
-        param["return_games"] = []
-        pgn = month_of_games(param, parallel = False)
-        pgn = filter_raw_pgn(pgn, param["year"],param["month"])
-        if pgn == False:
-            print('no pgn ', param["year"],param["month"])
-            continue
-        for game in pgn['games']:
-            games[param["year"]][param["month"]].append(game)
-    return games
+        text_games = pgn_response.text
+        # Your existing replace for specific string issue, if still necessary for chess.com archives
+        text_games = text_games.replace(' \\"Let"s Play!','lets_play') 
+        
+        parsed_json = json.loads(text_games)
+        return parsed_json # Return the parsed JSON directly
+    except json.JSONDecodeError as e:
+        print(f'JSON decoding failed for year: {year}, month: {month}: {e}')
+        return None
+    except Exception as e:
+        print(f"Error filtering raw PGN for {year}-{month}: {e}")
+        return None
 
-"""
-def download_months(player_name, valid_dates, parallel=True):
-    return_games = []
-        params = [
-            {
-                "player_name": player_name,
-                "year": date[0],
-                "month": date[1],
-                "return_games": return_games,
-            }
-            for date in valid_dates
-        ]
-        if parallel:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-                executor.map(month_of_games, params)
-            print(f"GOT {len(return_games)} games")
-            print("downloading over")
-            return_games = [game for game in return_games if game is not False]
-            print(f'returned games = {len(return_games)}')
-    
-            years = set([x[0] for x in return_games])
-            years = {name: {} for name in years}
-            
-            for year_month_game in return_games:
-                year = year_month_game[0]
-                month = year_month_game[1]
-                try:
-                    years[year][month]
-                except:
-                    years[year][month] = list()
-                years[year][month].extend(year_month_game[2])
-            return years
-def month_of_games(params: list, parallel = True) -> None:
 
-    pgn = download_month(params["player_name"], params["year"], params["month"])
-    if pgn == False:
-        return False
-    return pgn
-"""
+async def download_months(
+    player_name: str,
+    valid_dates: List[str], # Changed to List[str] as just_new_months returns 'YYYY-MM' strings
+    max_concurrent_requests: int = 2,  # Adjust based on observed API limits
+    min_delay_between_requests: float = 0.5 # e.g., 0.5 seconds per request (2 requests/sec)
+) -> Dict[int, Dict[int, List[Dict[str, Any]]]]:
+    """
+    Downloads games for a player for a list of 'YYYY-MM' month strings with controlled concurrency.
+
+    Args:
+        player_name (str): The Chess.com player's username.
+        valid_dates (List[str]): A list of 'YYYY-MM' strings to download.
+        max_concurrent_requests (int): The maximum number of simultaneous requests to make.
+                                      Adjust based on Chess.com API rate limits.
+        min_delay_between_requests (float): Minimum delay in seconds between starting new requests.
+                                            This is crucial for API rate limiting.
+
+    Returns:
+        Dict[int, Dict[int, List[Dict[str, Any]]]]: A dictionary where keys are years,
+        nested keys are months, and values are lists of game dictionaries.
+    """
+    all_games_by_month: Dict[int, Dict[int, List[Dict[str, Any]]]] = {}
+    
+    # Use a semaphore to limit concurrent HTTP requests
+    semaphore = asyncio.Semaphore(max_concurrent_requests)
+
+    # Use a single httpx.AsyncClient for all requests in this session for efficiency
+    async with httpx.AsyncClient(timeout=15) as shared_client: # Increased timeout for bulk downloads
+        async def fetch_month_games_task(month_str: str) -> Tuple[int, int, Optional[List[Dict[str, Any]]]]:
+            """
+            Internal async function to fetch games for a single month, respecting semaphore and delay.
+            Returns: A tuple (year, month, games_list) or (year, month, None) on error/no games.
+            """
+            async with semaphore:
+                # Ensure a minimum delay before starting the next request
+                await asyncio.sleep(min_delay_between_requests)
+
+                year_str, month_str_val = month_str.split('-')
+                year = int(year_str)
+                month = int(month_str_val)
+
+                param = {"player_name": player_name, "year": year, "month": month}
+                # Pass the shared_client to month_of_games
+                result = await month_of_games(param, shared_client) 
+
+                if result is None: # month_of_games returns None on errors/no games
+                    return year, month, None
+                
+                if 'games' in result and result['games'] is not None:
+                    return year, month, result['games']
+                else:
+                    print(f"No games or invalid data for {year}-{month} (missing/empty 'games' key in parsed JSON).")
+                    return year, month, None
+
+        # Create a list of tasks for each month to be fetched
+        tasks = [fetch_month_games_task(month_str) for month_str in valid_dates]
+
+        # Run tasks concurrently, limited by the semaphore
+        print(f"Starting download of {len(tasks)} months with {max_concurrent_requests} concurrent requests...")
+        start_time = time.time()
+        
+        # return_exceptions=True so that one task failing doesn't stop others
+        results = await asyncio.gather(*tasks, return_exceptions=True) 
+
+        end_time = time.time()
+        print(f"Finished downloading {len(tasks)} months in {end_time - start_time:.2f} seconds.")
+
+    # --- FIX: Handle exceptions in results list before unpacking ---
+    for item in results:
+        if isinstance(item, Exception):
+            print(f"An error occurred in a month download task: {item}")
+            # You might want to log the full traceback of the exception here for debugging.
+            # E.g., import traceback; traceback.print_exception(type(item), item, item.__traceback__)
+            continue # Skip to the next item if it's an exception
+        
+        # If it's not an exception, it should be the expected tuple (year, month, games_list)
+        year, month, games_list = item 
+        
+        if games_list is not None: # Only add if games_list is not None (i.e., successfully fetched)
+            if year not in all_games_by_month:
+                all_games_by_month[year] = {}
+            all_games_by_month[year][month] = games_list
+
+    return all_games_by_month
+

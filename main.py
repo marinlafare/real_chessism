@@ -9,7 +9,7 @@ from database.routers import games, players
 # lifespan event handler for new implementation
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db(CONN_STRING)
+    await init_db(CONN_STRING)
     print('Server ON YO!...')
     yield
     print('Server DOWN YO!...')
