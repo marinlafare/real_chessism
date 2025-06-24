@@ -64,15 +64,15 @@ async def get_profile(player_name: str) -> Optional[PlayerCreateData]:
                     processed_data['joined'] = 0
             else:
                 processed_data['joined'] = 0
-
-            processed_data['status'] = raw_data.get('status')
-            processed_data['is_streamer'] = raw_data.get('is_streamer')
-            processed_data['twitch_url'] = raw_data.get('twitch_url')
-            processed_data['verified'] = raw_data.get('verified')
-            processed_data['league'] = raw_data.get('league')
-            print(processed_data)
             try:
-                player_data = PlayerCreateData(**processed_data)
+                
+                processed_data['status'] = raw_data.get('status')
+                processed_data['is_streamer'] = raw_data.get('is_streamer')
+                processed_data['twitch_url'] = raw_data.get('twitch_url')
+                processed_data['verified'] = raw_data.get('verified')
+                processed_data['league'] = raw_data.get('league')
+                print('raw data',processed_data)
+                player_data = processed_data
                 return player_data # Return the Pydantic model instance
             except Exception as pydantic_error:
                 print(f"Pydantic validation error for {player_name}: {pydantic_error}")
@@ -201,16 +201,16 @@ async def month_of_games(param: Dict[str, Any], client: httpx.AsyncClient) -> Op
 
 
 async def download_months(
-    player_name: str,
-    valid_dates: List[str], # Changed to List[str] as just_new_months returns 'YYYY-MM' strings
-    max_concurrent_requests: int = 2,  # Adjust based on observed API limits
-    min_delay_between_requests: float = 0.5 # e.g., 0.5 seconds per request (2 requests/sec)
-) -> Dict[int, Dict[int, List[Dict[str, Any]]]]:
+                    player_name: str,
+                    valid_dates: List[str],
+                    max_concurrent_requests: int = 2,  # Adjust based on observed chess.com API limit
+                    min_delay_between_requests: float = 0.5 # e.g., 0.5 seconds per request (2 requests/sec)
+                        ) -> Dict[int, Dict[int, List[Dict[str, Any]]]]:
     """
-    Downloads games for a player for a list of 'YYYY-MM' month strings with controlled concurrency.
+    Downloads games for a player's month strings with controlled concurrency.
 
     Args:
-        player_name (str): The Chess.com player's username.
+        player_name (str): chess.com player's username.
         valid_dates (List[str]): A list of 'YYYY-MM' strings to download.
         max_concurrent_requests (int): The maximum number of simultaneous requests to make.
                                       Adjust based on Chess.com API rate limits.
@@ -223,18 +223,19 @@ async def download_months(
     """
     all_games_by_month: Dict[int, Dict[int, List[Dict[str, Any]]]] = {}
     
-    # Use a semaphore to limit concurrent HTTP requests
     semaphore = asyncio.Semaphore(max_concurrent_requests)
 
-    # Use a single httpx.AsyncClient for all requests in this session for efficiency
-    async with httpx.AsyncClient(timeout=15) as shared_client: # Increased timeout for bulk downloads
+    async with httpx.AsyncClient(timeout=15) as shared_client:
         async def fetch_month_games_task(month_str: str) -> Tuple[int, int, Optional[List[Dict[str, Any]]]]:
             """
-            Internal async function to fetch games for a single month, respecting semaphore and delay.
+            Internal async function to fetch games for a single month,
+            semaphore and delay to not upset chess_com.
+            
+            Arg: mont_str = '2020-1'
+            
             Returns: A tuple (year, month, games_list) or (year, month, None) on error/no games.
             """
             async with semaphore:
-                # Ensure a minimum delay before starting the next request
                 await asyncio.sleep(min_delay_between_requests)
 
                 year_str, month_str_val = month_str.split('-')
@@ -242,10 +243,10 @@ async def download_months(
                 month = int(month_str_val)
 
                 param = {"player_name": player_name, "year": year, "month": month}
-                # Pass the shared_client to month_of_games
+                
                 result = await month_of_games(param, shared_client) 
 
-                if result is None: # month_of_games returns None on errors/no games
+                if result is None:
                     return year, month, None
                 
                 if 'games' in result and result['games'] is not None:
@@ -254,7 +255,7 @@ async def download_months(
                     print(f"No games or invalid data for {year}-{month} (missing/empty 'games' key in parsed JSON).")
                     return year, month, None
 
-        # Create a list of tasks for each month to be fetched
+
         tasks = [fetch_month_games_task(month_str) for month_str in valid_dates]
 
         # Run tasks concurrently, limited by the semaphore
@@ -270,15 +271,11 @@ async def download_months(
     # --- FIX: Handle exceptions in results list before unpacking ---
     for item in results:
         if isinstance(item, Exception):
-            print(f"An error occurred in a month download task: {item}")
-            # You might want to log the full traceback of the exception here for debugging.
-            # E.g., import traceback; traceback.print_exception(type(item), item, item.__traceback__)
-            continue # Skip to the next item if it's an exception
-        
-        # If it's not an exception, it should be the expected tuple (year, month, games_list)
+            print(f"An error occurred in month: {item}")
+            continue
         year, month, games_list = item 
-        
-        if games_list is not None: # Only add if games_list is not None (i.e., successfully fetched)
+
+        if games_list is not None:
             if year not in all_games_by_month:
                 all_games_by_month[year] = {}
             all_games_by_month[year][month] = games_list

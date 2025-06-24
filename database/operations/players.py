@@ -33,15 +33,17 @@ async def insert_player(data: Dict[str, Any]) -> Optional[PlayerCreateData]:
     """
     player_db_interface = DBInterface(Player)
     player_name_lower = data['player_name'].lower()
-    existing_player_data = await player_db_interface.read_by_name(player_name_lower)
+    existing_player_data = await player_db_interface.player_exists(player_name_lower)
     if existing_player_data:
-        return existing_player_data
+        profile = await read_player(player_name_lower)
+        return PlayerCreateData(**profile)
     # Player does not exist so...
     profile = await get_profile(player_name_lower)
     if profile is None:
         print(f"Failed to fetch profile for {player_name_lower} from .chess_com_api.")
         return None
-    try:
+    try:        
+        profile = PlayerCreateData(**profile)
         created_player_orm = await player_db_interface.create(profile.model_dump())
         if created_player_orm:            
             return profile

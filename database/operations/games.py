@@ -1,13 +1,13 @@
 #OPERATIONS
 
-from .format_dates import just_new_months
-from .format_games import format_and_insert_games
+from .available_months import just_new_months
+from .format_games import format_games, insert_games_months_moves_and_players
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from .chess_com_api import download_months
 import time
 
-def read_game(data):
+async def read_game(data):
     player = data
     player = jsonable_encoder(player)
     return JSONResponse(content=player)
@@ -19,23 +19,24 @@ async def create_games(data: dict) -> str:
     start_new_months = time.time()
     new_months = await just_new_months(player_name)
     if new_months is False:
+        print('#####')
         print("MONTHS found: 0", 'time elapsed: ',time.time()-start_new_months)
         return 'ALL MONTHS IN DB ALREADY'
     else:
+        print('#####')
         print(f"MONTHS found: {len(new_months)}", 'time elapsed: ',time.time()-start_new_months)
     print('... Starting DOWNLOAD ...')
-    start_download = time.time()
-    downloaded_games_by_month = await download_months(player_name, new_months)
-    download_time = time.time() - start_download
-    print(f"DOWNLOADED IN: {download_time:.2f} seconds")
-
-    return downloaded_games_by_month
-    # # Example adjustment for the final return (if you want to keep str):
-    # num_downloaded_games = sum(len(v) for y in downloaded_games_by_month.values() for v in y.values()) if downloaded_games_by_month else 0
-    # print(f"Processed {len(new_months)} months. Downloaded games: {num_downloaded_games}")
-
-    # # THIS IS THE NEXT PART OF THE PROCESS
-    # format_and_insert_games(downloaded_games_by_month, player_name)
+    downloaded_games_by_month = await download_months(player_name, new_months)    
+    num_downloaded_games = sum(len(v) for y in downloaded_games_by_month.values()
+                               for v in y.values()) if downloaded_games_by_month else 0
+    
+    print(f"Processed {len(new_months)} months. Downloaded games: {num_downloaded_games}")
+    print('#####')
+    
+    # THIS IS THE NEXT PART OF THE PROCESS
+    formatted_games_results = await format_games(downloaded_games_by_month, player_name)
+    #insert_games_months_moves_and_players(formatted_games_results)
+    return formatted_games_results
     # end_create_games = time.time()
     # print('Format done in: ',(end_create_games-start_create_games)/60)
     # return f"DATA READY FOR {player_name}"

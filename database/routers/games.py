@@ -1,12 +1,12 @@
 # database/routers/games.py
-
+from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Body # Import Body for explicit body parsing
 from database.operations.games import create_games, read_game
 
 router = APIRouter()
 
 @router.get("/games/{link}")
-def api_read_game(data: dict = Body(...)) -> JSONResponse:
+async def api_read_game(data: dict = Body(...)) -> JSONResponse:
     """
     Arg: str representation of an int: 
                                       get("/games/123456")
@@ -28,4 +28,4 @@ async def api_create_game(data: dict = Body(...)) -> JSONResponse:
     Returns: a string congratulating you for having more games now.
     """
     congratulation = await create_games(data)
-    return await congratulation
+    return congratulation
