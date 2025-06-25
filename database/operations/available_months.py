@@ -5,7 +5,7 @@ import calendar
 from typing import Dict, Any, List, Tuple, Optional, Union
 
 from database.operations.models import MonthCreateData
-from database.operations.months import create_month, read_months, update_month
+from database.operations.months import read_months, update_month
 import database.operations.players as players_ops
 from fastapi.encoders import jsonable_encoder
 from database.database.db_interface import DBInterface
@@ -51,7 +51,7 @@ async def full_range(player_name: str) -> Union[List[str], Dict[str, Any]]:
     dates_info = await get_joined_and_current_date(player_name)
 
     if "error" in dates_info:
-        return dates_info # you should feel ashamed for this
+        return dates_info # you should feel ashamed if this happens
 
     joined_date = dates_info["joined_date"]
     current_date = dates_info["current_date"]

@@ -1,39 +1,21 @@
 #OPERATIONS
 from pydantic import BaseModel
-
-
-# class PlayerCreateData(BaseModel):
-#     player_name: str
-#     name: str = 'None'
-#     url: str = 'None'
-#     title: str = 'None'
-#     avatar: str = 'None'
-#     followers: int = 0
-#     country: str = 'None'
-#     location: str = 'None'
-#     joined: int = 0
-#     status: str = 'None'
-#     is_streamer: bool = False
-#     twitch_url: str = 'None'
-#     verified: bool = False
-#     league: str = 'None'
-
-from typing import Optional # Import Optional
+from typing import Optional
 
 class PlayerCreateData(BaseModel):
     player_name: str
-    name: Optional[str] = None # Can be str or None, defaults to None
+    name: Optional[str] = None
     url: Optional[str] = None
-    title: Optional[str] = None # FIX: Changed from str = 'None' to Optional[str] = None
+    title: Optional[str] = None
     avatar: Optional[str] = None
-    followers: Optional[int] = None # This is fine, int and defaults to 0
+    followers: Optional[int] = None
     country: Optional[str] = None
-    location: Optional[str] = None # FIX: Changed from str = 'None' to Optional[str] = None
+    location: Optional[str] = None
     joined: Optional[int] = None
     status: Optional[str] = None
     is_streamer: Optional[bool] = None
-    twitch_url: Optional[str] = None # FIX: Changed from str = 'None' to Optional[str] = None
-    verified: Optional[bool] = False # Changed to Optional[bool] for consistency
+    twitch_url: Optional[str] = None
+    verified: Optional[bool] = False
     league: Optional[str] = None
 
 class PlayerResult(BaseModel):
@@ -74,8 +56,7 @@ class MonthCreateData(BaseModel):
     month: int
     n_games: int
 class MonthResult(BaseModel):
-    # This model represents how a Month record looks when read from the DB
-    id: int # Assuming 'id' is present after creation
+    id: int
     player_name: str
     year: int
     month: int

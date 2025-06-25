@@ -120,27 +120,27 @@ async def ask_twice(player_name: str, year: int, month: int, client: httpx.Async
     try:
         games_response = await client.get(
             DOWNLOAD_MONTH_URL,
-            follow_redirects=True, # Use 'follow_redirects'
+            follow_redirects=True,
             timeout=5,
             headers={"User-Agent": USER_AGENT}
         )
         
         # Check for empty content on first try and retry if necessary
         if not games_response.content:
-            await asyncio.sleep(1) # Wait asynchronously before retry
+            await asyncio.sleep(1)
             games_response = await client.get(
                 DOWNLOAD_MONTH_URL,
                 follow_redirects=True,
-                timeout=10, # Longer timeout for retry
+                timeout=10,
                 headers={"User-Agent": USER_AGENT}
             )
         
         if not games_response.content:
             print(f"No content after two attempts for {player_name} in {year}-{month_str}.")
-            return None # Explicitly return None if no content
+            return None
 
-        games_response.raise_for_status() # Raise for 4xx/5xx responses
-        return games_response # Return the httpx Response object
+        games_response.raise_for_status()
+        return games_response
 
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
@@ -180,18 +180,17 @@ async def month_of_games(param: Dict[str, Any], client: httpx.AsyncClient) -> Op
     year = param["year"]
     month = param["month"]
 
-    pgn_response = await download_month(player_name, year, month, client) # Pass the client
+    pgn_response = await download_month(player_name, year, month, client)
     
-    if pgn_response is None: # check for None from download_month
-        return None # Indicate failure to get PGN content
+    if pgn_response is None:
+        return None
 
     try:
         text_games = pgn_response.text
-        # Your existing replace for specific string issue, if still necessary for chess.com archives
         text_games = text_games.replace(' \\"Let"s Play!','lets_play') 
         
         parsed_json = json.loads(text_games)
-        return parsed_json # Return the parsed JSON directly
+        return parsed_json
     except json.JSONDecodeError as e:
         print(f'JSON decoding failed for year: {year}, month: {month}: {e}')
         return None
@@ -203,8 +202,8 @@ async def month_of_games(param: Dict[str, Any], client: httpx.AsyncClient) -> Op
 async def download_months(
                     player_name: str,
                     valid_dates: List[str],
-                    max_concurrent_requests: int = 2,  # Adjust based on observed chess.com API limit
-                    min_delay_between_requests: float = 0.5 # e.g., 0.5 seconds per request (2 requests/sec)
+                    max_concurrent_requests: int = 2,
+                    min_delay_between_requests: float = 0.5
                         ) -> Dict[int, Dict[int, List[Dict[str, Any]]]]:
     """
     Downloads games for a player's month strings with controlled concurrency.

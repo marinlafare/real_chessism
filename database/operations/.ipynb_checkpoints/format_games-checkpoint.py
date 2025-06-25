@@ -1,70 +1,38 @@
 # OPERATIONS FORMAT GAMES (REVISED for Asynchronous Execution and Efficiency)
-from typing import Union,Dict,Any, List, Set, Tuple # Added Set and Tuple for type hints
+from typing import Union,Dict,Any, List, Set, Tuple
 import asyncio
 import concurrent.futures
 from sqlalchemy import text, select
 from fastapi.encoders import jsonable_encoder
 import numpy as np
-from constants import DRAW_RESULTS, LOSE_RESULTS, WINING_RESULT # Assuming these are defined correctly
+from constants import DRAW_RESULTS, LOSE_RESULTS, WINING_RESULT
 from .models import PlayerCreateData, GameCreateData, MoveCreateData, MonthCreateData
 import re
 import pandas as pd
-import multiprocessing as mp # Used for setting ThreadPoolExecutor max_workers
+import multiprocessing as mp
 from database.database.ask_db import (
-    get_players_already_in_db,
     get_games_already_in_db
 )
 from database.database.db_interface import DBInterface
 from database.database.models import Player, Game, Month, Move
 import time
 from datetime import datetime
-from database.operations import players as players_ops # Explicitly import players_ops
-# from database.operations.chess_com_api import get_profile # Uncomment if get_profile is used here directly, though it's used via players_ops.insert_player
+from database.operations import players as players_ops
 
-
-# Define a global ThreadPoolExecutor for CPU-bound tasks.
-# It's better to manage this at the application level (e.g., FastAPI's lifespan events)
-# for a long-running service. For this example, we'll initialize it here.
-# Max workers is set to the number of CPU cores to maximize CPU-bound parallelism.
+# this should be at the main.py i think
 cpu_bound_executor = concurrent.futures.ThreadPoolExecutor(max_workers=mp.cpu_count())
-
-
-# --- ASYNC FUNCTIONS (for database interactions or orchestration) ---
-
-# Note: The insert_player function here is from the previous context,
-# but it's generally better to rely on players_ops.insert_player directly.
-# Keeping it here for reference to what it might do if called directly.
-# This function is not used in the current format_games, but if it were uncommented
-# and used, it would need get_profile imported.
-# async def insert_player(data: dict):
-#     player_interface = DBInterface(Player)
-#     player_name = data['player_name'].lower()
-
-#     existing_player_data = await player_interface.read_by_name(player_name)
-#     if existing_player_data:
-#         # Assuming existing_player_data is a dict from read_by_name
-#         return PlayerCreateData(**existing_player_data)
-
-#     profile = await get_profile(player_name) # get_profile returns PlayerCreateData or None
-
-#     if profile is None:
-#         print(f"Failed to fetch or process profile for {player_name}. Cannot insert.")
-#         return None
-
-#     player_data_to_insert = profile.model_dump() # Convert Pydantic model to dict
-
-#     try:
-#         created_player_orm = await player_interface.create(player_data_to_insert)
-#         return PlayerCreateData(**player_interface.to_dict(created_player_orm))
-#     except Exception as e:
-#         print(f"Error inserting player {player_name} into database: {e}")
-#         return None
 
 
 async def insert_new_data(games_list, moves_list, months_list):
     """
     Inserts formatted game, move, and month data into the database in the correct order
     to respect foreign key constraints. Games must be inserted before moves.
+
+    Args: lists for games, moves_list and month_list
+            each list contains one dictionary for item.
+
+    Returns: Nothing
+    
     """
     game_interface = DBInterface(Game)
     move_interface = DBInterface(Move)
@@ -85,7 +53,7 @@ async def insert_new_data(games_list, moves_list, months_list):
         print("No new moves to insert.")
 
     # Step 3: Insert months. This can be done after games and moves, or even concurrently
-    # with games if no foreign key dependency exists. For safety, keeping it sequential here.
+    # For safety, keeping it sequential here.
     if months_list:
         await month_interface.create_all(months_list)
         print(f"Successfully inserted {len(months_list)} months.")
@@ -97,11 +65,6 @@ async def insert_new_data(games_list, moves_list, months_list):
         print(f"Overall database insertion completed for {len(games_list)} games, {len(moves_list)} moves, and {len(months_list)} months.")
     else:
         print("No data was inserted into the database.")
-
-
-# --- SYNCHRONOUS HELPER FUNCTIONS (for CPU-bound data formatting) ---
-# These functions do not perform I/O (no network requests, no database calls)
-# so they can be run in a ThreadPoolExecutor.
 
 def get_pgn_item(game_pgn: str, item: str) -> str:
     """Extracts an item from a PGN string."""
@@ -125,7 +88,6 @@ def get_pgn_item(game_pgn: str, item: str) -> str:
 
 def get_start_and_end_date(game, game_for_db):
     """Extracts and calculates game start/end dates and time elapsed."""
-    # This function is correct as provided.
     try:
         game_date = get_pgn_item(game['pgn'], item='Date').split('.')
         game_for_db['year'] = int(game_date[0])
@@ -186,7 +148,6 @@ def get_start_and_end_date(game, game_for_db):
 
 def translate_result_to_float(str_result):
     """Converts string results to float representation."""
-    # This function is correct as provided.
     if str_result in WINING_RESULT:
         return 1.0
     if str_result in DRAW_RESULTS:
@@ -196,11 +157,10 @@ def translate_result_to_float(str_result):
     else:
         print('""""""UNKNOWN Natural Language Result"""""""""""""')
         print(str_result)
-        return None # Return None for unrecognised results, so it can be handled or flagged
+        return None
 
 def get_black_and_white_data(game, game_for_db):
     """Extracts white and black player data and results."""
-    # This function is correct as provided.
     game_for_db['black'] = game['black']['username'].lower()
     game_for_db['black_elo'] = int(game['black']['rating'])
     game_for_db['black_str_result'] = game['black']['result'].lower()
@@ -214,7 +174,6 @@ def get_black_and_white_data(game, game_for_db):
 
 def get_time_bonus(game):
     """Extracts time bonus from time_control string."""
-    # This function is correct as provided.
     time_control = game['time_control']
     if "+" in time_control:
         return int(time_control.split("+")[-1])
@@ -222,8 +181,6 @@ def get_time_bonus(game):
 
 def get_n_moves(raw_moves):
     """Calculates the number of moves from a raw PGN moves string."""
-    # This function is correct as provided.
-    # Handle cases where there are no numeric move indicators or empty raw_moves
     if not raw_moves.strip():
         return 0
     numeric_moves = [int(x.replace(".", "")) for x in raw_moves.split() if x.replace(".", "").isnumeric()]
@@ -234,9 +191,9 @@ def create_moves_table(
         times: list,
         clean_moves: list,
         n_moves: int,
-        time_bonus: int) -> dict[str, Any]: # Added Any for value type
+        time_bonus: int) -> dict[str, Any]: 
     """Formats raw move data into a dictionary suitable for MoveCreateData."""
-    # Ensure consistent padding with "--"
+    
     if len(clean_moves) % 2 != 0:
         clean_moves.append("--")
     if len(times) % 2 != 0:
@@ -245,11 +202,10 @@ def create_moves_table(
     ordered_times = np.array(times).reshape((-1, 2))
     ordered_moves = np.array(clean_moves).reshape((-1, 2))
 
-    # Explicitly handle the '--' placeholder when converting to Timedelta
     white_times = pd.Series(
         [pd.Timedelta(str(str_time)).total_seconds() if str(str_time) != "--" else 0.0 for str_time in ordered_times[:, 0]]
     )
-    # Apply the same logic for black_times, directly from ordered_times, handling '--'
+
     black_times = pd.Series(
         [pd.Timedelta(str(str_time)).total_seconds() if str(str_time) != "--" else 0.0 for str_time in ordered_times[:, 1]]
     )
@@ -261,79 +217,16 @@ def create_moves_table(
     result = {
         "link": int(game_url.split('/')[-1]),
         "white_moves": [str(x) for x in ordered_moves[:, 0].tolist()],
-        "white_reaction_times": [round(x, 3) for x in white_reaction_times_raw.tolist()], # Applied rounding
-        "white_time_left": [round(x, 3) for x in white_times.tolist()], # Applied rounding for consistency
+        "white_reaction_times": [round(x, 3) for x in white_reaction_times_raw.tolist()],
+        "white_time_left": [round(x, 3) for x in white_times.tolist()],
         "black_moves": [str(x) for x in ordered_moves[:, 1].tolist()],
-        "black_reaction_times": [round(x, 3) for x in black_reaction_times_raw.tolist()], # Applied rounding
-        "black_time_left": [round(x, 3) for x in black_times.tolist()] # Applied rounding for consistency
+        "black_reaction_times": [round(x, 3) for x in black_reaction_times_raw.tolist()],
+        "black_time_left": [round(x, 3) for x in black_times.tolist()]
     }
     return result
-# def create_moves_table(
-#         game_url:str,
-#         times: list,
-#         clean_moves: list,
-#         n_moves: int,
-#         time_bonus: int) -> dict[str, Any]: # Added Any for value type
-#     """Formats raw move data into a dictionary suitable for MoveCreateData."""
-#     # This function is correct as provided, but ensures lists are returned.
-#     # Ensure times and clean_moves have consistent lengths for reshaping, pad if necessary.
-#     # This logic assumes pairs exist for white and black moves/times.
-#     # If a game ends with a white move, black_moves/times might be shorter.
-#     # You may need more robust padding or separate processing for last move.
 
-#     # Example: If clean_moves or times is odd, add a placeholder for the last move
-#     if len(clean_moves) % 2 != 0:
-#         clean_moves.append("-")
-#     if len(times) % 2 != 0:
-#         times.append("-")
-    
-#     ordered_times = np.array(times).reshape((-1, 2))
-#     ordered_moves = np.array(clean_moves).reshape((-1, 2))
-
-#     white_times = pd.Series(
-#         [pd.Timedelta(str(str_time)).total_seconds() for str_time in ordered_times[:, 0]] # Explicit cast to str
-#     )
-#     black_times_raw = [str(str_time) for str_time in ordered_times[:, 1] if str_time != "-"] # Explicit cast to str
-#     black_times = pd.Series(
-#         [pd.Timedelta(str_time).total_seconds() for str_time in black_times_raw]
-#     )
-
-#     white_reaction_times_raw = white_times.diff(periods=-1).fillna(0).abs() + time_bonus
-#     black_reaction_times_raw = black_times.diff(periods=-1).fillna(0).abs() + time_bonus
-#     # print('###############################')
-#     # ordered_times = np.array(times).reshape((-1, 2))
-#     # ordered_moves = np.array(clean_moves).reshape((-1, 2))
-
-#     # white_times = pd.Series(
-#     #     [pd.Timedelta(str_time).total_seconds() for str_time in ordered_times[:, 0]]
-#     # )
-#     # # Filter out '-' before converting to timedelta for black_times
-#     # black_times_raw = [str_time for str_time in ordered_times[:, 1] if str_time != "-"]
-#     # black_times = pd.Series(
-#     #     [pd.Timedelta(str_time).total_seconds() for str_time in black_times_raw]
-#     # )
-
-#     # # Use .diff() for reaction times and fillna(0) for first move
-#     # white_reaction_times_raw = white_times.diff(periods=-1).fillna(0).abs() + time_bonus
-#     # black_reaction_times_raw = black_times.diff(periods=-1).fillna(0).abs() + time_bonus
-#     # print('######   reaction times')
-#     # print('###############################')
-
-
-#     result = {
-#         "link": int(game_url.split('/')[-1]),
-#         "white_moves": ordered_moves[:, 0].tolist(),
-#         "white_reaction_times": white_reaction_times_raw.tolist(),
-#         "white_time_left": white_times.tolist(),
-#         "black_moves": ordered_moves[:, 1].tolist(),
-#         "black_reaction_times": black_reaction_times_raw.tolist(),
-#         "black_time_left": black_times.tolist()
-#     }
-    
-#     return result
-
-def get_moves_data(game: dict) -> tuple[int, dict]: # Type hint for return
-    """Extracts and formats move-specific data for a game."""
+def get_moves_data(game: dict) -> tuple[int, dict]:
+    """Extracts and formats the moves of a game."""
     time_bonus = get_time_bonus(game)
 
     raw_moves = (
@@ -344,24 +237,15 @@ def get_moves_data(game: dict) -> tuple[int, dict]: # Type hint for return
     )
     n_moves = get_n_moves(raw_moves)
 
-    # Extract times and clean moves more robustly
     times = [x.replace("]", "").replace("}", "") for x in raw_moves.split() if ":" in x]
-    # Remove text inside curly braces and then split by space, filter out empty strings and dots
     just_moves = re.sub(r"{[^}]*}*", "", raw_moves)
-    clean_moves = [x for x in just_moves.split() if x and "." not in x] # Check for empty strings after split
-
-    # Chess.com PGNs often include an extra "..." for the last move if it's black's turn to move,
-    # or if the game ends on a white move without a corresponding black move.
-    # The previous logic "if not f"{n_moves}..." in raw_moves:" seems slightly off.
-    # A simpler approach is to ensure equal length for white/black moves/times.
-    # If the number of actual moves is N, white has ceil(N/2) moves and black has floor(N/2).
-    # If clean_moves is odd length, means it ended on white's move, so black_move will be empty.
+    clean_moves = [x for x in just_moves.split() if x and "." not in x]
     
     if len(clean_moves) % 2 != 0:
-        clean_moves.append("--") # Placeholder for black's missing move
+        clean_moves.append("--")
 
     if len(times) % 2 != 0:
-        times.append("--") # Placeholder for black's missing time
+        times.append("--")
 
     moves_data = create_moves_table(game['url'],
                                     times,
@@ -370,16 +254,11 @@ def get_moves_data(game: dict) -> tuple[int, dict]: # Type hint for return
                                     time_bonus)
     return n_moves, moves_data
 
-def create_game_dict(game_raw_data: dict) -> Union[Dict[str, Any], str, bool]: # Type hint for return
+def create_game_dict(game_raw_data: dict) -> Union[Dict[str, Any], str, bool]:
     """Converts raw game data into a dictionary for the Game model."""
     try:
         len(game_raw_data['pgn'])
-        # Check if 'pgn' exists and is not empty before proceeding
-        # if 'pgn' not in game_raw_data or not game_raw_data['pgn'].strip():
-        #     print(f"Skipping game {game_raw_data.get('url', 'N/A')} due to missing or empty PGN.")
-        #     return "NO PGN"
     except KeyError:
-        #print(f"Skipping game {game_raw_data.get('url', 'N/A')} due to missing PGN key.")
         return "NO PGN"
 
     game_for_db = dict()
@@ -387,14 +266,12 @@ def create_game_dict(game_raw_data: dict) -> Union[Dict[str, Any], str, bool]: #
     game_for_db['time_control'] = game_raw_data['time_control']
     game_for_db = get_start_and_end_date(game_raw_data, game_for_db)
 
-    # Basic validation for essential fields after get_start_and_end_date
-    if game_for_db['year'] == 0: # Indicates an issue in date parsing
+    if game_for_db['year'] == 0:
         print(f"Skipping game {game_raw_data.get('url', 'N/A')} due to date parsing error.")
         return False
 
     game_for_db = get_black_and_white_data(game_raw_data, game_for_db)
 
-    # Basic validation for essential player data
     if game_for_db['white_result'] is None or game_for_db['black_result'] is None:
         print(f"Skipping game {game_raw_data.get('url', 'N/A')} due to unrecognised result string.")
         return False
@@ -406,22 +283,22 @@ def create_game_dict(game_raw_data: dict) -> Union[Dict[str, Any], str, bool]: #
         return False
 
     game_for_db['n_moves'] = n_moves
-    game_for_db['moves_data'] = moves_data # This will be popped later
+    game_for_db['moves_data'] = moves_data
     try:
         game_for_db['eco'] = game_raw_data['eco']
     except KeyError:
         game_for_db['eco'] = 'no_eco'
     return game_for_db
 
-def format_one_game_moves(moves: dict) -> List[Dict[str, Any]]: # Type hint
+def format_one_game_moves(moves: dict) -> List[Dict[str, Any]]:
     """Formats individual moves data for the Move model."""
     to_insert_moves = []
     try:
         # Ensure 'white_moves', 'black_moves', etc. are present and are lists
         if not all(k in moves and isinstance(moves[k], list) for k in ['white_moves', 'white_reaction_times', 'white_time_left', 'black_moves', 'black_reaction_times', 'black_time_left']):
             print(f"Warning: Missing or invalid moves data structure for game link {moves.get('link', 'N/A')}")
-            return [] # Return empty list if data structure is bad
-    except KeyError: # Catch if 'moves' itself is not a valid dict
+            return []
+    except KeyError:
         return []
 
     # Ensure all lists are of comparable length, or handle index errors gracefully
@@ -541,7 +418,9 @@ async def insert_games_months_moves_and_players(formatted_games_results, player_
     for game_dict_result in formatted_games_results:
         if game_dict_result and game_dict_result != "NO PGN" and game_dict_result != False: # Added check for 'False'
             # Safely pop moves_data to prepare for GameCreateData
-            moves_data = game_dict_result.pop('moves_data', None) # Use .pop with default
+            try:
+                moves_data = game_dict_result.pop('moves_data', None) # Use .pop with default
+            except: continue
             
             if moves_data: # Only proceed if moves_data was successfully extracted
                 # Offload format_one_game_moves to a separate thread
@@ -631,9 +510,7 @@ async def get_just_new_games(games: Dict[str, Dict[str, List[Dict[str, Any]]]]) 
         structured by year and month, or False if no new games are found or an error occurs.
     """
     links_to_check = set()
-    # No need for all_games_flat if we reconstruct the dict directly later
-
-    # Flatten the nested dictionary and collect all links
+    
     for year_data in games.values():
         for month_data in year_data.values():
             for game in month_data:
@@ -678,7 +555,7 @@ async def get_just_new_games(games: Dict[str, Dict[str, List[Dict[str, Any]]]]) 
                 new_games_structured[year][month] = filtered_games_in_month
 
     if total_new_games_count == 0:
-        print("After filtering, no new games remain. This might indicate an issue with link matching.")
+        print("After filtering, no new games remain. Is this a blessing or a curse?")
         return False
 
     return new_games_structured

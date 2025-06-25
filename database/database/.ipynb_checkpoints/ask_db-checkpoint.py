@@ -1,13 +1,12 @@
-# database/database/ask_db.py (Fully Asynchronous and Batched Queries)
+# database/database/ask_db.py
 
-import asyncpg # Direct async PostgreSQL driver for low-level ops like DDL
-from .db_interface import DBInterface # Assuming DBInterface is fully async
-from .models import Player, Game, Month # Import SQLAlchemy ORM models (Player, Game, Month are expected)
-from sqlalchemy import text, select # For raw SQL with SQLAlchemy async sessions, and ORM selects
-from urllib.parse import urlparse # For parsing connection string for asyncpg direct connect
+import asyncpg
+from .db_interface import DBInterface
+from .models import Player, Game, Month 
+from sqlalchemy import text, select 
+from urllib.parse import urlparse
 from typing import Tuple, Set, List, Dict, Any, Union
 
-# --- Asynchronous Database Query Functions (using DBInterface/SQLAlchemy ORM) ---
 async def get_async_db_session():
     """
     Provides an asynchronous database session using DBInterface.
@@ -21,45 +20,8 @@ async def get_async_db_session():
             # Perform database operations using 'session'
             # e.g., session.execute(select(MyModel))
     """
-    # DBInterface can be initialized with any model; it's the session management
-    # that's generic across models once the engine is set up.
-    # We'll use the Game model as an example, but Player or any other works.
-    session_interface = DBInterface(Game) # Using Game model as an example base for the engine
+    session_interface = DBInterface(Game)
     return session_interface.AsyncSessionLocal()
-
-
-async def get_players_already_in_db(player_names: Tuple[str, ...]) -> Set[str]:
-    """
-    Asynchronously checks and returns a set of player names already in the DB.
-    Uses DBInterface for Player model. Handles large numbers of player names by batching queries.
-
-    Args:
-        player_names (Tuple[str, ...]): A tuple of player usernames to check.
-
-    Returns:
-        Set[str]: A set of player usernames that are already present in the database.
-    """
-    if not player_names:
-        return set() # Return empty set if no player names are provided
-
-    player_interface = DBInterface(Player) # Instantiate DBInterface for the Player model
-    already_in_db_players = set()
-
-    # Define a reasonable batch size for player names
-    # Using 10000 for consistency and safety, similar to game links
-    BATCH_SIZE = 10000 
-
-    # Process player names in batches
-    for i in range(0, len(player_names), BATCH_SIZE):
-        batch_player_names = player_names[i:i + BATCH_SIZE]
-        
-        async with player_interface.AsyncSessionLocal() as session:
-            # Using SQLAlchemy ORM filter for safety and consistency
-            stmt = select(player_interface.model.player_name).filter(player_interface.model.player_name.in_(batch_player_names))
-            result = await session.execute(stmt)
-            already_in_db_players.update(result.scalars().all())
-
-    return already_in_db_players
 
 
 async def get_games_already_in_db(links: Tuple[int, ...]) -> Set[int]:
@@ -105,13 +67,11 @@ async def get_all_players() -> Set[str]:
     """
     player_interface = DBInterface(Player)
     async with player_interface.AsyncSessionLocal() as session:
-        stmt = select(player_interface.model.player_name) # Select just the player_name column
+        stmt = select(player_interface.model.player_name)
         result = await session.execute(stmt)
         return set(result.scalars().all())
 
-# --- Asynchronous Database Schema Management Functions (using asyncpg directly) ---
-
-async def delete_all_tables(connection_string: str):
+async def delete_all_main_tables(connection_string: str):
     """
     Asynchronously drops all tables in the 'public' schema of the database.
     This uses asyncpg directly for DDL operations, as it's often simpler
@@ -125,7 +85,7 @@ async def delete_all_tables(connection_string: str):
     db_port = parsed_url.port
     db_name = parsed_url.path.lstrip('/')
 
-    conn = None # Initialize to None for finally block
+    conn = None 
     try:
         # Connect to the target database directly using asyncpg
         conn = await asyncpg.connect(
@@ -151,16 +111,16 @@ async def delete_all_tables(connection_string: str):
             return
 
         for record in tables:
-            table_name = record['table_name']
-            print(f"Deleting table: {table_name}...")
-            try:
-                # Use double quotes for table name to handle case-sensitivity or special characters
-                # CASCADE ensures dependent objects (like foreign keys) are also dropped
-                await conn.execute(f'DROP TABLE IF EXISTS "{table_name}" CASCADE;')
-                print(f"Successfully deleted table: {table_name}")
-            except Exception as e:
-                print(f"Error deleting table '{table_name}': {e}")
-                # Log or re-raise as appropriate. A single table failure might not stop others.
+            if record not in ['fen','known_fens','rawfen','knownfens','fens_ready']:
+                table_name = record['table_name']
+                
+                print(f"Deleting table: {table_name}...")
+                try:
+                    await conn.execute(f'DROP TABLE IF EXISTS "{table_name}" CASCADE;')
+                    print(f"Successfully deleted table: {table_name}")
+                except Exception as e:
+                    print(f"Error deleting table '{table_name}': {e}")
+                    # Log or re-raise as appropriate. A single table failure might not stop others.
         print("All specified tables processed for deletion.")
 
     except Exception as e:
