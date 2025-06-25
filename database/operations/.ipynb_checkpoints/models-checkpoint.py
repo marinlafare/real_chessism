@@ -26,12 +26,12 @@ class PlayerCreateData(BaseModel):
     url: Optional[str] = None
     title: Optional[str] = None # FIX: Changed from str = 'None' to Optional[str] = None
     avatar: Optional[str] = None
-    followers: int = 0 # This is fine, int and defaults to 0
+    followers: Optional[int] = None # This is fine, int and defaults to 0
     country: Optional[str] = None
     location: Optional[str] = None # FIX: Changed from str = 'None' to Optional[str] = None
-    joined: int = 0
+    joined: Optional[int] = None
     status: Optional[str] = None
-    is_streamer: bool = False
+    is_streamer: Optional[bool] = None
     twitch_url: Optional[str] = None # FIX: Changed from str = 'None' to Optional[str] = None
     verified: Optional[bool] = False # Changed to Optional[bool] for consistency
     league: Optional[str] = None

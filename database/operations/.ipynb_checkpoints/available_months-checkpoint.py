@@ -92,13 +92,13 @@ async def just_new_months(player_name: str) -> Union[List[str], Dict[str, Any], 
     month_db_interface = DBInterface(Month)
     async with month_db_interface.AsyncSessionLocal() as session:
     
-        if not hasattr(month_db_interface.Model, 'player_name') or \
-           not hasattr(month_db_interface.Model, 'year') or \
-           not hasattr(month_db_interface.Model, 'month'):
+        if not hasattr(month_db_interface.model, 'player_name') or \
+           not hasattr(month_db_interface.model, 'year') or \
+           not hasattr(month_db_interface.model, 'month'):
             print("Error: Month model missing expected attributes for querying existing months.")
             return {"error": "Month model definition issue. Idk seriously?"}
 
-        player_db_months = select(month_db_interface.Model).filter_by(player_name=player_name)
+        player_db_months = select(month_db_interface.model).filter_by(player_name=player_name)
         result = await session.execute(player_db_months)
         existing_months_for_player = [f"{m.year}-{m.month:02d}" for m in result.scalars().all()]
     
