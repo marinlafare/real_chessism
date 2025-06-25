@@ -7,6 +7,7 @@ from database.database.models import Player
 from database.operations.models import PlayerCreateData 
 from database.operations.chess_com_api import get_profile
 
+
 async def read_player(player_name: str) -> Optional[Dict[str, Any]]:
     """
     Reads a player's profile from the database by player_name.

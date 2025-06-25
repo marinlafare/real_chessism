@@ -279,7 +279,7 @@ def create_game_dict(game_raw_data: dict) -> Union[Dict[str, Any], str, bool]:
     try:
         n_moves, moves_data = get_moves_data(game_raw_data)
     except Exception as e:
-        print(f"Error getting moves data for game {game_raw_data.get('url', 'N/A')}: {e}")
+        #print(f"Error getting moves data for game {game_raw_data.get('url', 'N/A')}: {e}")
         return False
 
     game_for_db['n_moves'] = n_moves

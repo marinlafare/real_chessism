@@ -5,7 +5,7 @@ import httpx
 import json
 import time
 from typing import List, Tuple, Dict, Any, Optional
-
+import pprint
 # Ensure these imports are correct based on your project structure
 from constants import USER_AGENT # Assuming USER_AGENT is defined here
 import database.operations.chess_com_endpoints as chess_com_endpoints
@@ -71,7 +71,7 @@ async def get_profile(player_name: str) -> Optional[PlayerCreateData]:
                 processed_data['twitch_url'] = raw_data.get('twitch_url')
                 processed_data['verified'] = raw_data.get('verified')
                 processed_data['league'] = raw_data.get('league')
-                print('raw data',processed_data)
+                pprint.pp(processed_data)
                 player_data = processed_data
                 return player_data # Return the Pydantic model instance
             except Exception as pydantic_error:

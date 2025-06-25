@@ -55,15 +55,15 @@ class DBInterface:
             await session.refresh(item)
             return item
 
-    async def read_by_name(self, name: str) -> Optional[Base]:
-        """
-        Reads a record by its 'player_name'.
-        """
-        async with self.AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(self.model).filter_by(player_name=name)
-            )
-            return result.scalars().first()
+    # async def read_by_name(self, name: str) -> Optional[Base]:
+    #     """
+    #     Reads a record by its 'player_name'.
+    #     """
+    #     async with self.AsyncSessionLocal() as session:
+    #         result = await session.execute(
+    #             select(self.model).filter_by(player_name=name)
+    #         )
+    #         return result.scalars().first()
 
     async def read_by_link(self, link_id: int) -> Optional[Base]:
         """

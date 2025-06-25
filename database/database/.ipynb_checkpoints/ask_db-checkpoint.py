@@ -36,13 +36,11 @@ async def get_games_already_in_db(links: Tuple[int, ...]) -> Set[int]:
         Set[int]: A set of game links (IDs) that are already present in the database.
     """
     if not links:
-        return set() # Return empty set if no links are provided
+        return set()
 
-    game_interface = DBInterface(Game) # Instantiate DBInterface for the Game model
+    game_interface = DBInterface(Game)
     already_in_db_links = set()
 
-    # Define a reasonable batch size to avoid the argument limit
-    # The asyncpg limit is 32767, so a safe batch size is typically 10000 to be very safe.
     BATCH_SIZE = 10000
 
     # Process links in batches
@@ -52,9 +50,8 @@ async def get_games_already_in_db(links: Tuple[int, ...]) -> Set[int]:
         
         async with game_interface.AsyncSessionLocal() as session:
             # Using SQLAlchemy ORM filter for safety and consistency
-            # This 'stmt' is executed for each small batch
-            stmt = select(game_interface.model.link).filter(game_interface.model.link.in_(batch_links))
-            result = await session.execute(stmt)
+            batch_of_links = select(game_interface.model.link).filter(game_interface.model.link.in_(batch_links))
+            result = await session.execute(batch_of_links)
             already_in_db_links.update(result.scalars().all())
 
     return already_in_db_links
@@ -120,12 +117,11 @@ async def delete_all_main_tables(connection_string: str):
                     print(f"Successfully deleted table: {table_name}")
                 except Exception as e:
                     print(f"Error deleting table '{table_name}': {e}")
-                    # Log or re-raise as appropriate. A single table failure might not stop others.
         print("All specified tables processed for deletion.")
 
     except Exception as e:
         print(f"An error occurred during delete_all_tables: {e}")
-        raise # Re-raise the exception for higher-level handling
+        raise
     finally:
         if conn:
             await conn.close()
@@ -146,11 +142,8 @@ async def open_request(sql_question: str, params: Union[Tuple[Any, ...], Dict[st
     Returns:
         Union[List[Dict[str, Any]], List[Tuple[Any, ...]]]: The fetched results.
     """
-    # Use async with to ensure the session is properly opened and closed
     async with await get_async_db_session() as session:
         try:
-            # For raw SQL, use text() to wrap the string.
-            # Pass parameters directly to execute.
             result = await session.execute(text(sql_question), params)
 
             if fetch_as_dict:
@@ -160,10 +153,8 @@ async def open_request(sql_question: str, params: Union[Tuple[Any, ...], Dict[st
                 results = [dict(zip(column_names, row)) for row in result.fetchall()]
                 return results
             else:
-                # Return results as a list of tuples (default fetchall behavior)
                 return result.fetchall()
         except Exception as e:
             # Log the error for debugging
             print(f"Error in open_request: {e}")
-            # Depending on desired error handling, you might re-raise or return an empty list
-            raise # Re-raise the exception to propagate it
+            raise # if error then return anxiety

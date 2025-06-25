@@ -5,11 +5,13 @@ from contextlib import asynccontextmanager
 from constants import CONN_STRING
 from database.database.engine import init_db
 from database.routers import games, players
+from database.database.db_interface import DBInterface
 
 # lifespan event handler for new implementation
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db(CONN_STRING)
+    DBInterface.initialize_engine_and_session(CONN_STRING)
     print('Server ON YO!...')
     yield
     print('Server DOWN YO!...')
