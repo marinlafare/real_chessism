@@ -12,15 +12,15 @@ from database.database.db_interface import DBInterface
 async def lifespan(app: FastAPI):
     await init_db(CONN_STRING)
     DBInterface.initialize_engine_and_session(CONN_STRING)
-    print('Server ON YO!...')
+    print('BASAL Server ON YO!...')
     yield
-    print('Server DOWN YO!...')
+    print('BASAL Server DOWN YO!...')
 
 app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 def read_root():
-    return "chessism server running."
+    return "MAIN_CHESSISM server running."
 
 app.include_router(players.router)
 app.include_router(games.router)
