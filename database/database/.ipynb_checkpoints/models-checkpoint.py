@@ -1,6 +1,6 @@
 #DATABASE
 from typing import Any
-from sqlalchemy import Column, ForeignKey, Integer, String, Float, BigInteger
+from sqlalchemy import Column, ForeignKey, Integer, String, Float, BigInteger, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import Boolean
@@ -53,6 +53,11 @@ class Game(Base):
     
     white_player = relationship(Player, foreign_keys=[white])
     black_player = relationship(Player, foreign_keys=[black])
+    fens = relationship( # <--- This is the 'fens' relationship on the Game model
+        'Fen',
+        secondary='game_fen_association',
+        back_populates='games' # <--- This links back to the 'games' relationship on the Fen model
+    )
 class Month(Base):
     __tablename__ = "months"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -82,10 +87,20 @@ class Move(Base):
     black_time_left = Column("black_time_left", Float, nullable=False)
     game = relationship(Game, foreign_keys=[link])
 
-
-# temp_player_names_table = Table(
-#     "temp_player_names",
-#     Column("player_name", String, primary_key=True), # Use a primary key for efficient lookups
-#     # You can add this if you want to ensure the table is temporary and cleaned up automatically
-#     # postgresql_temporary=True, # This hint is for some ORM extensions, but manual DROP is safer with asyncpg
-# )
+class Fen(Base):
+    __tablename__ = "fen"
+    fen = Column('fen',String, primary_key = True, index = True, unique = True)
+    n_games = Column('n_games',BigInteger, nullable = False)
+    moves_counter = Column('moves_counter',String, nullable = False)
+    next_moves = Column('next_moves',String, nullable = True)
+    score = Column('score', Float, nullable = True)
+    games = relationship(
+        'Game',
+        secondary='game_fen_association',
+        back_populates='fens'
+    )
+game_fen_association = Table(
+    'game_fen_association', Base.metadata,
+    Column('game_link', BigInteger, ForeignKey('game.link'), primary_key=True),
+    Column('fen_fen', String, ForeignKey('fen.fen'), primary_key=True)
+)
