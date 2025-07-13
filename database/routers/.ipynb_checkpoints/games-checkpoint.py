@@ -1,14 +1,15 @@
 # database/routers/games.py
 from fastapi.responses import JSONResponse
-from fastapi import APIRouter, Body # Import Body for explicit body parsing
-from database.operations.games import create_games, read_game
+from fastapi import APIRouter, Body
+from database.operations.games import create_games, read_game, update_player_games
 
+from database.database.ask_db import get_principal_players
 router = APIRouter()
 
 
 
 @router.get("/games/{link}")
-async def api_read_game(link: str) -> JSONResponse: # <--- Change here: directly use 'link' from path
+async def api_read_game(link: str) -> JSONResponse:
     """
     Retrieves game information by its link.
 
@@ -32,29 +33,6 @@ async def api_read_game(link: str) -> JSONResponse: # <--- Change here: directly
         print(f"Error fetching game {link}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# # Placeholder for read_game for demonstration purposes
-# # In your actual code, ensure this is correctly imported or defined.
-# async def read_game(game_link: str):
-#     """Mocks reading game data from a database."""
-#     print(f"Reading game with link: {game_link}")
-#     # Simulate a database lookup
-#     if game_link == "138708864874":
-#         return {"link": game_link, "player_white": "PlayerA", "player_black": "PlayerB", "moves": "e4 e5 Nf3 Nc6"}
-#     if game_link == "123456":
-#         return {"link": game_link, "player_white": "Hikaru", "player_black": "Magnus", "moves": "d4 d5 c4 c5"}
-#     return None # Game not found
-
-# @router.get("/games/{link}")
-# async def api_read_game(data: dict = Body(...)) -> JSONResponse:
-#     """
-#     Arg: str representation of an int: 
-#                                       get("/games/123456")
-                                      
-#     Returns: json info of the game
-#     """
-#     game = await read_game(data)
-#     return game
-
 @router.post("/games/{player_name}")
 async def api_create_game(data: dict = Body(...)) -> JSONResponse:
     """
@@ -68,3 +46,15 @@ async def api_create_game(data: dict = Body(...)) -> JSONResponse:
     """
     congratulation = await create_games(data)
     return congratulation
+
+@router.post("/games/update/{player_name}")
+async def api_update_player_games(data: dict = Body(...)) -> JSONResponse:
+    congratulation = await update_player_games(player_name)
+    return congratulation
+
+@router.post("/games/update/all")
+async def api_update_all_players_games() -> JSONResponse:
+    players = await get_principal_players()
+    for player in players:
+        await update_player_games(player_name)
+    return "EVERY PLAYER UPDATED"

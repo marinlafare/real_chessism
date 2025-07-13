@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    ports:
+      - "444:444" # Expose your FastAPI app on port 8000
+    environment:
+      # These environment variables will be passed to your app container
+      # The 'HOST' for the database is now 'host.docker.internal' to reach the host machine's database
+      USER: jon # Matches your constants.py and desired PG user
+      PASSWORD: 3214 # Matches your constants.py and desired PG password
+      HOST: host.docker.internal # CRUCIAL CHANGE: Points to the host machine's localhost
+      PORT: 5432 # Matches your constants.py and desired PG port
+      DATABASE_NAME: chessism # Matches your constants.py and desired PG database name
+    # Removed 'depends_on: - db' as there is no 'db' service in docker-compose anymore
+    # Optional: If you want to see the environment variables loaded by constants.py
+    # command: bash -c "sleep 5 && python -m uvicorn main:app --host 0.0.0.0 --port 8000"
+
+# The 'db' service has been removed as you want to connect to a local database on your host.
+# The 'volumes' section for 'db_data' has also been removed.

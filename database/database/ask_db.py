@@ -158,3 +158,26 @@ async def open_request(sql_question: str, params: Union[Tuple[Any, ...], Dict[st
             # Log the error for debugging
             print(f"Error in open_request: {e}")
             raise # if error then return anxiety
+async def get_principal_players():
+    """
+    Retrieves a list of all player names from the 'player' table where 'name' is not null.
+
+    Returns:
+        List[str]: A list of player names (strings). Returns an empty list if no players are found
+                   or if an error occurs.
+    """
+    try:
+        # Assuming your player table is named 'player' and the column is 'player_name'
+        # and you want to filter by a 'name' column not being null.
+        # Adjust table and column names if they are different in your schema.
+        query = "SELECT player_name FROM player WHERE name IS NOT NULL;"
+        # Fetch as list of tuples, then extract the first element (player_name) from each tuple
+        player_names_tuples = await open_request(query, fetch_as_dict=False)
+
+        if player_names_tuples:
+            return [name[0] for name in player_names_tuples]
+        else:
+            return []
+    except Exception as e:
+        print(f"Error in get_principal_players: {e}")
+        return []
